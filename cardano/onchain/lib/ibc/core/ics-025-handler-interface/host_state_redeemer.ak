@@ -79,4 +79,6 @@ pub type HostStateRedeemer {
   // provides one proof anchor per Cardano epoch when no ordinary IBC state
   // transition occurs.
   Heartbeat
+  CreateEthereumClient
+  UpdateEthereumClient
 }

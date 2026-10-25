@@ -516,6 +516,7 @@ fn check_composed_prune(mutation: Mutation) -> Bool {
     )
   let host_state_valid =
     host_state_stt.host_state_stt.spend(
+              #"00000000000000000000000000000000000000000000000000000000", #"00000000000000000000000000000000000000000000000000000000",
       mock.host_state_nft_policy_id,
       "unused client script hash",
       "unused connection script hash",

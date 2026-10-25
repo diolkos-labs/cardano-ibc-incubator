@@ -425,6 +425,7 @@ fn run_conn_open_try_transition(
     |> fuzz_dsl.with_protocol_validator_check(
         "host_state_stt.create_connection",
         host_state_stt.host_state_stt.spend(
+              #"00000000000000000000000000000000000000000000000000000000", #"00000000000000000000000000000000000000000000000000000000",
           fixture.host_state_nft_policy_id,
           "client script hash",
           fixture.spend_connection_script_hash,

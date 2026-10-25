@@ -1,6 +1,6 @@
 use aiken/crypto
 use aiken/primitive/bytearray
-use aiken/primitive/string
+use ibc/apps/transfer/hex
 
 pub const shard_token_domain = "cardano-ibc/transfer-escrow-shard/v1"
 
@@ -37,25 +37,9 @@ pub fn shard_token_name(channel_id: ByteArray, denom: ByteArray) -> ByteArray {
 pub fn shard_registry_key(channel_id: ByteArray, denom: ByteArray) -> ByteArray {
   let token_name_hex =
     shard_token_name(channel_id, denom)
-      |> bytearray.to_hex
-      |> string.to_bytearray
-      |> ascii_lower
+      |> hex.lower_hex
   bytearray.concat(shard_registry_key_prefix, token_name_hex)
 }
 
-fn ascii_lower(bytes: ByteArray) -> ByteArray {
-  bytearray.foldr(
-    bytes,
-    "",
-    fn(byte, acc) {
-      bytearray.push(
-        acc,
-        if byte >= 65 && byte <= 90 {
-          byte + 32
-        } else {
-          byte
-        },
-      )
-    },
-  )
-}
+// Lowercase encoding is covered by exhaustive byte and legacy-equivalence
+// regressions in hex.ak and voucher_metadata.ak.

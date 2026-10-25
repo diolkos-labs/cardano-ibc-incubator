@@ -630,6 +630,7 @@ fn check_recv_packet_with_timeout(
     and {
       recv_packet_valid?,
       host_state_stt.host_state_stt.spend(
+              #"00000000000000000000000000000000000000000000000000000000", #"00000000000000000000000000000000000000000000000000000000",
         host_nft_policy,
         "unused client script hash",
         "unused connection script hash",

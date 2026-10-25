@@ -608,7 +608,7 @@ fn spend_host_state_with_signatories(
   outputs: List<Output>,
   extra_signatories: List<crypto.VerificationKeyHash>,
 ) -> Bool {
-  host_state_stt.host_state_stt.spend(
+  host_state_stt.host_state_stt.spend(#"00000000000000000000000000000000000000000000000000000000", #"00000000000000000000000000000000000000000000000000000000",
     test_nft_policy(),
     test_client_script_hash(),
     test_connection_script_hash(),
@@ -628,7 +628,7 @@ fn spend_host_state_with_channel_redeemer(
   outputs: List<Output>,
 ) -> Bool {
   let channel_redeemer_data: Redeemer = channel_redeemer
-  host_state_stt.host_state_stt.spend(
+  host_state_stt.host_state_stt.spend(#"00000000000000000000000000000000000000000000000000000000", #"00000000000000000000000000000000000000000000000000000000",
     test_nft_policy(),
     test_client_script_hash(),
     test_connection_script_hash(),
@@ -3123,7 +3123,7 @@ test host_state_bind_port_succeeds_with_correct_root_witness() {
       extra_signatories: [trusted_deployer],
     }
 
-  host_state_stt.host_state_stt.spend(
+  host_state_stt.host_state_stt.spend(#"00000000000000000000000000000000000000000000000000000000", #"00000000000000000000000000000000000000000000000000000000",
     nft_policy,
     dummy_script_hash,
     dummy_script_hash,
@@ -3216,7 +3216,7 @@ test host_state_bind_port_fails_with_arbitrary_root() fail {
       extra_signatories: [trusted_deployer],
     }
 
-  host_state_stt.host_state_stt.spend(
+  host_state_stt.host_state_stt.spend(#"00000000000000000000000000000000000000000000000000000000", #"00000000000000000000000000000000000000000000000000000000",
     nft_policy,
     dummy_script_hash,
     dummy_script_hash,
@@ -3330,7 +3330,7 @@ test host_state_cannot_move_nft_to_different_address() fail {
       extra_signatories: [trusted_deployer],
     }
 
-  host_state_stt.host_state_stt.spend(
+  host_state_stt.host_state_stt.spend(#"00000000000000000000000000000000000000000000000000000000", #"00000000000000000000000000000000000000000000000000000000",
     nft_policy,
     dummy_script_hash,
     dummy_script_hash,
@@ -3437,7 +3437,7 @@ test host_state_bind_port_fails_without_required_sibling_hashes() fail {
       extra_signatories: [trusted_deployer],
     }
 
-  host_state_stt.host_state_stt.spend(
+  host_state_stt.host_state_stt.spend(#"00000000000000000000000000000000000000000000000000000000", #"00000000000000000000000000000000000000000000000000000000",
     nft_policy,
     dummy_script_hash,
     dummy_script_hash,
@@ -3506,7 +3506,7 @@ test host_state_bind_port_fails_if_output_missing() fail {
       extra_signatories: [trusted_deployer],
     }
 
-  host_state_stt.host_state_stt.spend(
+  host_state_stt.host_state_stt.spend(#"00000000000000000000000000000000000000000000000000000000", #"00000000000000000000000000000000000000000000000000000000",
     nft_policy,
     dummy_script_hash,
     dummy_script_hash,
@@ -3590,7 +3590,7 @@ test host_state_enter_shutdown_succeeds_with_deployer_signature() {
 
   let redeemer: HostStateRedeemer = EnterShutdown { grace_period_end }
 
-  host_state_stt.host_state_stt.spend(
+  host_state_stt.host_state_stt.spend(#"00000000000000000000000000000000000000000000000000000000", #"00000000000000000000000000000000000000000000000000000000",
     nft_policy,
     dummy_script_hash,
     dummy_script_hash,
@@ -3669,7 +3669,7 @@ test host_state_enter_shutdown_fails_without_deployer_signature() fail {
 
   let redeemer: HostStateRedeemer = EnterShutdown { grace_period_end }
 
-  host_state_stt.host_state_stt.spend(
+  host_state_stt.host_state_stt.spend(#"00000000000000000000000000000000000000000000000000000000", #"00000000000000000000000000000000000000000000000000000000",
     nft_policy,
     dummy_script_hash,
     dummy_script_hash,
@@ -3746,7 +3746,7 @@ test host_state_finalize_shutdown_succeeds_after_grace_period() {
       validity_range: interval.after(grace_period_end),
     }
 
-  host_state_stt.host_state_stt.spend(
+  host_state_stt.host_state_stt.spend(#"00000000000000000000000000000000000000000000000000000000", #"00000000000000000000000000000000000000000000000000000000",
     nft_policy,
     dummy_script_hash,
     dummy_script_hash,
@@ -3823,7 +3823,7 @@ test host_state_finalize_shutdown_fails_before_grace_period() fail {
       validity_range: interval.after(grace_period_end - 1),
     }
 
-  host_state_stt.host_state_stt.spend(
+  host_state_stt.host_state_stt.spend(#"00000000000000000000000000000000000000000000000000000000", #"00000000000000000000000000000000000000000000000000000000",
     nft_policy,
     dummy_script_hash,
     dummy_script_hash,
@@ -3946,7 +3946,7 @@ test host_state_update_channel_rejects_packet_field_changes() fail {
 
   let redeemer: HostStateRedeemer = UpdateChannel { channel_siblings }
 
-  host_state_stt.host_state_stt.spend(
+  host_state_stt.host_state_stt.spend(#"00000000000000000000000000000000000000000000000000000000", #"00000000000000000000000000000000000000000000000000000000",
     nft_policy,
     host_script_hash,
     host_script_hash,
@@ -4080,7 +4080,7 @@ test host_state_handle_packet_rejects_channel_only_changes() fail {
       packet_acknowledgement_siblings: [],
     }
 
-  host_state_stt.host_state_stt.spend(
+  host_state_stt.host_state_stt.spend(#"00000000000000000000000000000000000000000000000000000000", #"00000000000000000000000000000000000000000000000000000000",
     nft_policy,
     host_script_hash,
     host_script_hash,

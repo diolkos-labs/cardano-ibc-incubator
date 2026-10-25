@@ -11,6 +11,7 @@ use cardano/transaction.{
   Transaction,
 }
 use ibc/auth.{AuthToken}
+use ibc/client/ethereum/root_binding
 use ibc/client/ics_007_tendermint_client/client_datum.{ClientDatum}
 use ibc/client/ics_007_tendermint_client/consensus_state.{ConsensusState}
 use ibc/client/ics_007_tendermint_client/height.{Height}
@@ -39,7 +40,7 @@ use ibc/core/ics_025_handler_interface/host_state.{
 use ibc/core/ics_025_handler_interface/host_state_redeemer.{
   BindPort, CreateChannel, CreateClient, CreateConnection, EnterShutdown,
   FinalizeShutdown, HandlePacket, Heartbeat, HostStateRedeemer, UpdateChannel,
-  UpdateClient, UpdateConnection,
+  UpdateClient, UpdateConnection, CreateEthereumClient, UpdateEthereumClient,
 }
 use ibc/core/ics_025_handler_interface/ibc_state_commitment
 use ibc/utils/string as string_utils
@@ -975,6 +976,8 @@ fn validate_handle_packet_root(
 /// 4. Version increments by 1
 /// 5. State transition is valid for the operation
 validator host_state_stt(
+  ethereum_client_script_hash: Hash<Blake2b_224, Script>,
+  ethereum_root_proof_policy: PolicyId,
   nft_policy: PolicyId,
   spend_client_script_hash: Hash<Blake2b_224, Script>,
   spend_connection_script_hash: Hash<Blake2b_224, Script>,
@@ -1033,6 +1036,14 @@ validator host_state_stt(
         expect new_datum.nft_policy == nft_policy
 
         when redeemer is {
+          CreateEthereumClient -> {
+            expect root_binding.require_proof(transaction, ethereum_root_proof_policy, nft_policy, ethereum_client_script_hash, 0)
+            validate_create_client(old_datum, new_datum)
+          }
+          UpdateEthereumClient -> {
+            expect root_binding.require_proof(transaction, ethereum_root_proof_policy, nft_policy, ethereum_client_script_hash, 1)
+            validate_update_only_root(old_datum, new_datum)
+          }
           CreateClient { client_state_siblings, consensus_state_siblings } ->
             and {
               validate_create_client(old_datum, new_datum),

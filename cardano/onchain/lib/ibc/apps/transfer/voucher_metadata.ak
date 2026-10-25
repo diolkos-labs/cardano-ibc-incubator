@@ -1,4 +1,5 @@
 use aiken/builtin
+use ibc/apps/transfer/hex
 use aiken/collection/list
 use aiken/crypto
 use aiken/primitive/bytearray
@@ -137,11 +138,7 @@ fn ibc_denom_hash(full_denom: ByteArray) -> ByteArray {
 }
 
 fn hex_ascii(bytes: ByteArray) -> ByteArray {
-  // Match the TypeScript encoder's lowercase ASCII hex representation.
-  bytes
-    |> bytearray.to_hex
-    |> string.to_bytearray
-    |> ascii_lower
+  hex.lower_hex(bytes)
 }
 
 fn ascii_lower(bytes: ByteArray) -> ByteArray {
@@ -171,6 +168,20 @@ fn join_segments(segments: List<ByteArray>) -> ByteArray {
       } else {
         bytearray.concat(bytearray.concat(acc, "/"), segment)
       }
+    },
+  )
+}
+
+// Check the direct lowercase encoder against the previous conversion and
+// normalization for every possible byte.
+test hexadecimal_matches_previous_normalization_for_every_byte() {
+  list.all(
+    list.range(0, 255),
+    fn(n) {
+      let value = bytearray.from_int_big_endian(n, 1)
+      hex_ascii(value) == ascii_lower(
+        value |> bytearray.to_hex |> string.to_bytearray,
+      )
     },
   )
 }

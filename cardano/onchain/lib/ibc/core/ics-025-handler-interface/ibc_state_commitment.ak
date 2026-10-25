@@ -28,6 +28,8 @@
 //   well-defined default leaf digest via SHA-256.
 
 use aiken/builtin
+use aiken/collection/list
+use aiken/fuzz
 use aiken/primitive/bytearray
 use ibc/utils/bits
 
@@ -102,71 +104,56 @@ pub fn inner_hash(left: ByteArray, right: ByteArray) -> ByteArray {
   }
 }
 
-/// Read a single bit from a hash, using a stable and well-defined bit order.
-///
-/// We interpret the first 8 bytes of `sha256(key)` as a 64-bit big-endian number.
-/// `bit_index = 0` reads the least significant bit of that number.
-fn bit_at(hash: ByteArray, bit_index: Int) -> Int {
-  // `merkle_depth_bits` is at most 64, so we only look at the first 8 bytes.
-  //
-  // We count bytes from the end of that 8-byte segment so that bit 0 starts at
-  // the least significant end (byte 7, bit 0).
-  let byte_index = 7 - bit_index / 8
-  let bit_in_byte = bit_index % 8
-
-  let byte = builtin.index_bytearray(hash, byte_index)
-  // Shift the selected bit down to position 0 and mask it to 0/1.
-  bits.shr(byte, bit_in_byte) % 2
+// Decode the same first-eight-byte big-endian selector once. Shifting this
+// non-negative integer by division retains the pinned leaf-to-root bit order.
+fn selector(key_hash: ByteArray) -> Int {
+  builtin.bytearray_to_integer(True, builtin.slice_bytearray(0, 8, key_hash))
 }
 
-/// Compute a root from:
-/// - a key (which defines the left/right directions via `sha256(key)`)
-/// - a leaf hash for that key
-/// - a list of sibling hashes (one per tree level)
+// Call only with validated 32-byte children. SHA-256 and empty_hash preserve
+// that invariant on every following level.
+fn inner_unchecked(left: ByteArray, right: ByteArray) -> ByteArray {
+  if left == empty_hash && right == empty_hash {
+    empty_hash
+  } else {
+    builtin.append_bytearray(#[1], left)
+      |> builtin.append_bytearray(right)
+      |> builtin.sha2_256()
+  }
+}
+
 pub fn compute_root(
   key: ByteArray,
   leaf: ByteArray,
   siblings: List<ByteArray>,
 ) -> ByteArray {
   expect bytearray.length(leaf) == hash_size_bytes
-  let key_hash = builtin.sha2_256(key)
-  compute_root_go(key_hash, leaf, siblings, 0)
+  root_go(selector(builtin.sha2_256(key)), leaf, siblings, merkle_depth_bits)
 }
 
-fn compute_root_go(
-  key_hash: ByteArray,
+fn root_go(
+  path: Int,
   current: ByteArray,
   siblings: List<ByteArray>,
-  depth: Int,
+  remaining: Int,
 ) -> ByteArray {
-  if depth == merkle_depth_bits {
-    // Require exactly `merkle_depth_bits` sibling hashes, no more and no less.
+  if remaining == 0 {
     expect siblings == []
     current
   } else {
     expect [sibling, ..rest] = siblings
     expect bytearray.length(sibling) == hash_size_bytes
-
-    let direction_bit = bit_at(key_hash, depth)
-    let next =
-      if direction_bit == 0 {
-        // 0 means "current node is on the left".
-        inner_hash(current, sibling)
-      } else {
-        // 1 means "current node is on the right".
-        inner_hash(sibling, current)
-      }
-
-    compute_root_go(key_hash, next, rest, depth + 1)
+    let next = if path % 2 == 0 {
+      inner_unchecked(current, sibling)
+    } else {
+      inner_unchecked(sibling, current)
+    }
+    root_go(path / 2, next, rest, remaining - 1)
   }
 }
 
-/// Apply a single key update witness.
-///
-/// This enforces the "no arbitrary roots" rule for one key:
-/// - recompute the old root from (old value + siblings)
-/// - recompute the new root from (new value + siblings)
-/// - only accept the update if the old root matches the current commitment
+/// Walk the common witness once for both leaves. The old-root check remains
+/// mandatory; callers never get an unauthenticated replacement root.
 pub fn apply_update(
   old_root: ByteArray,
   key: ByteArray,
@@ -175,13 +162,154 @@ pub fn apply_update(
   siblings: List<ByteArray>,
 ) -> ByteArray {
   expect bytearray.length(old_root) == hash_size_bytes
-
   let key_hash = builtin.sha2_256(key)
-
   let old_leaf = leaf_hash(key_hash, value_hash(old_value))
-  let computed_old_root = compute_root(key, old_leaf, siblings)
-  expect computed_old_root == old_root
-
   let new_leaf = leaf_hash(key_hash, value_hash(new_value))
-  compute_root(key, new_leaf, siblings)
+  let (computed_old, computed_new) = update_go(
+    selector(key_hash),
+    old_leaf,
+    new_leaf,
+    siblings,
+    merkle_depth_bits,
+  )
+  expect computed_old == old_root
+  computed_new
+}
+
+fn update_go(
+  path: Int,
+  old: ByteArray,
+  new: ByteArray,
+  siblings: List<ByteArray>,
+  remaining: Int,
+) -> (ByteArray, ByteArray) {
+  if remaining == 0 {
+    expect siblings == []
+    (old, new)
+  } else {
+    expect [sibling, ..rest] = siblings
+    expect bytearray.length(sibling) == hash_size_bytes
+    // Tail-call in each direction instead of allocating and destructuring a
+    // temporary pair at every level. Both authenticated leaves still traverse
+    // all 64 checked siblings in the same order.
+    if path % 2 == 0 {
+      update_go(path / 2, inner_unchecked(old, sibling),
+        inner_unchecked(new, sibling), rest, remaining - 1)
+    } else {
+      update_go(path / 2, inner_unchecked(sibling, old),
+        inner_unchecked(sibling, new), rest, remaining - 1)
+    }
+  }
+}
+
+// Independent legacy walker retained only in tests. It computes each bit by
+// byte indexing and powers of two, exactly as the pinned implementation did.
+
+fn legacy_root(
+  key_hash: ByteArray,
+  current: ByteArray,
+  siblings: List<ByteArray>,
+  depth: Int,
+) -> ByteArray {
+  if depth == merkle_depth_bits {
+    expect siblings == []
+    current
+  } else {
+    expect [sibling, ..rest] = siblings
+    expect bytearray.length(sibling) == hash_size_bytes
+    let byte = builtin.index_bytearray(key_hash, 7 - depth / 8)
+    let direction = bits.shr(byte, depth % 8) % 2
+    let next = if direction == 0 {
+      inner_hash(current, sibling)
+    } else {
+      inner_hash(sibling, current)
+    }
+    legacy_root(key_hash, next, rest, depth + 1)
+  }
+}
+
+fn test_siblings() -> List<ByteArray> {
+  list.repeat(empty_hash, 64)
+}
+
+test optimized_smt_matches_legacy_mixed_branches(
+  key via fuzz.bytearray_between(1, 64),
+) {
+  let key_hash = builtin.sha2_256(key)
+  let siblings = list.map(
+    list.range(0, 63),
+    fn(n) {
+      if n % 3 == 0 {
+        empty_hash
+      } else {
+        builtin.sha2_256(bytearray.push(key, n))
+      }
+    },
+  )
+  let old_leaf = leaf_hash(key_hash, value_hash("old"))
+  let new_leaf = leaf_hash(key_hash, value_hash("new"))
+  let old_root = legacy_root(key_hash, old_leaf, siblings, 0)
+  let new_root = legacy_root(key_hash, new_leaf, siblings, 0)
+  and {
+    compute_root(key, old_leaf, siblings) == old_root,
+    compute_root(key, new_leaf, siblings) == new_root,
+    apply_update(old_root, key, "old", "new", siblings) == new_root,
+    apply_update(new_root, key, "new", "old", siblings) == old_root,
+  }
+}
+
+test optimized_smt_insert_delete_and_noop() {
+  let key = "escrowShards/example"
+  let siblings = test_siblings()
+  let expected = legacy_root(
+    builtin.sha2_256(key),
+    leaf_hash(builtin.sha2_256(key), value_hash("01")),
+    siblings,
+    0,
+  )
+  and {
+    apply_update(empty_hash, key, "", "01", siblings) == expected,
+    apply_update(expected, key, "01", "", siblings) == empty_hash,
+    apply_update(expected, key, "01", "01", siblings) == expected,
+    compute_root(key, empty_hash, siblings) == empty_hash,
+  }
+}
+
+test optimized_smt_rejects_wrong_root() fail {
+  apply_update(empty_hash, "key", "present", "next", test_siblings()) != #""
+}
+
+test optimized_smt_rejects_wrong_key() fail {
+  let root = compute_root(
+    "key",
+    leaf_hash(builtin.sha2_256("key"), value_hash("present")),
+    test_siblings(),
+  )
+  apply_update(root, "different-key", "present", "next", test_siblings()) != #""
+}
+
+test optimized_smt_rejects_short_path() fail {
+  apply_update(empty_hash, "key", "", "next", list.repeat(empty_hash, 63)) != #""
+}
+
+test optimized_smt_rejects_long_path() fail {
+  apply_update(empty_hash, "key", "", "next", list.repeat(empty_hash, 65)) != #""
+}
+
+test optimized_smt_rejects_short_sibling() fail {
+  apply_update(
+    empty_hash,
+    "key",
+    "",
+    "next",
+    [#"00", ..list.repeat(empty_hash, 63)],
+  ) != #""
+}
+
+test optimized_smt_rejects_short_leaf() fail {
+  compute_root("key", #"00", test_siblings()) != #""
+}
+
+test optimized_smt_rejects_short_root() fail {
+  apply_update(#"00", "key", "", "next", test_siblings()) != #""
 }

@@ -467,12 +467,6 @@ fn existing_metadata_mapping_present(
     )
   let expected_value =
     assets.from_asset(voucher_minting_policy_id, reference_token_name, 1)
-  let expected_datum =
-    voucher_metadata_datum.build_datum(
-      full_denom,
-      voucher_asset_name.voucher_user_token_name_from_denom_hash(voucher_hash),
-      voucher_minting_policy_id,
-    )
   let metadata_address = from_script(voucher_metadata_script_hash)
 
   list.length(
@@ -487,7 +481,14 @@ fn existing_metadata_mapping_present(
           False
         } else {
           when output.datum is {
-            InlineDatum(datum) -> datum == expected_datum
+            InlineDatum(datum) ->
+              // Construct the immutable datum only after the exact metadata
+              // NFT/address is present. First-seen mints have no such reference.
+              datum == voucher_metadata_datum.build_datum(
+                full_denom,
+                voucher_asset_name.voucher_user_token_name_from_denom_hash(voucher_hash),
+                voucher_minting_policy_id,
+              )
             _ -> False
           }
         }
